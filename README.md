@@ -1,6 +1,6 @@
 # Criticality-Weighted Prioritisation of Satellite Conjunction Alerts
 
-Data snapshot for FIT5145 Assignment 3 (Monash University, Sameer Hate, 36783617). The project ranks satellite close-approach alerts by how critical the objects involved are (operational status and launch recency), rather than by distance alone. All data come from [CelesTrak](https://celestrak.org) and were downloaded on 13 October 2026. The data change every few hours, so these files are a fixed snapshot used to make the analysis reproducible.
+The project ranks satellite close-approach alerts by how critical the objects involved are (operational status and launch recency), rather than by distance alone. All data come from [CelesTrak](https://celestrak.org) and were downloaded on 13 October 2026. The data change every few hours, so these files are a fixed snapshot used to make the analysis reproducible.
 
 **Files**
 - `sc_0.csv` to `sc_9.csv`, `sc_A.csv` to `sc_Z.csv`: SATCAT records of on-orbit objects, one request per character in the object name. They overlap and are merged and de-duplicated by `NORAD_CAT_ID` in the R Markdown script.
