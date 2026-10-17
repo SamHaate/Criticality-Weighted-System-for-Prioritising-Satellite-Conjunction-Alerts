@@ -1,9 +1,66 @@
 # Criticality-Weighted Prioritisation of Satellite Conjunction Alerts
 
-The project ranks satellite close-approach alerts by how critical the objects involved are (operational status and launch recency), rather than by distance alone. All data come from [CelesTrak](https://celestrak.org) and were downloaded on 13 October 2026. The data change every few hours, so these files are a fixed snapshot used to make the analysis reproducible.
+FIT5145 Foundations of Data Science, Assignment 3 (Semester 2, 2026). Sameer Hate, 36783617.
 
-**Files**
-- `sc_0.csv` to `sc_9.csv`, `sc_A.csv` to `sc_Z.csv`: SATCAT records of on-orbit objects, one request per character in the object name. They overlap and are merged and de-duplicated by `NORAD_CAT_ID` in the R Markdown script.
-- `satcat_onorbit.csv`: the merged result (35,280 objects), kept to check the merge.
-- `satcat_active.csv`: SATCAT records for active payloads only (17,203 objects), used to show that 95% have no size (RCS) recorded.
-- `iridium_next.tle`, `iridium33_debris.tle`, `cosmos2251_debris.tle`: two-line element sets for one congested orbital band (about 780 to 800 km), used for the SGP4 close-approach screening.
+Satellite operators receive conjunction alerts (predicted close approaches between two orbiting objects) and must decide which ones deserve a manoeuvre. Public screening ranks alerts by distance or collision probability only. This project ranks them by what is at stake: it scores every satellite for criticality from public catalogue fields, predicts close approaches with SGP4, and combines the two into a priority ranking that is compared with a distance-only ranking.
+
+## Data snapshot (read this first)
+
+All data come from [CelesTrak](https://celestrak.org) and are a **fixed snapshot**:
+
+- Satellite catalogue (SATCAT): downloaded 13 October 2026.
+- Two-line element (TLE) files: downloaded 14 October 2026 (newest element set 14 October 2026 00:43 UTC).
+
+CelesTrak updates these files several times a day, so freshly downloaded data will give different numbers. **To replicate the reported findings, use the files in this repository, not new downloads.** The script uses a fixed cut-off of 2026-10-14 09:00 UTC so that results do not depend on the day it is run.
+
+## Files
+
+| File | Content |
+|---|---|
+| `sc_0.csv` to `sc_9.csv`, `sc_A.csv` to `sc_Z.csv` | SATCAT records of on-orbit objects, one request per first character of the object name. They overlap and are merged and de-duplicated by `NORAD_CAT_ID` in the R Markdown script. |
+| `satcat_onorbit.csv` | The merged result (35,280 objects), kept to check the merge. |
+| `satcat_active.csv` | SATCAT records for active payloads (17,203 rows), used to show that about 95% have no radar cross-section (RCS) recorded. |
+| `iridium_next.tle` | Iridium NEXT constellation (80 element sets). |
+| `iridium33_debris.tle` | Iridium 33 collision debris (109). |
+| `cosmos2251_debris.tle` | Cosmos 2251 collision debris (588). |
+| `resource.tle` | Earth resources satellites (167). |
+| `weather.tle` | Weather satellites (72). |
+| `science.tle` | Science satellites (46). |
+| `Assignment-1.Rmd` | The analysis script (R Markdown). Knit it to reproduce every table and figure. |
+
+The six TLE files hold 1,062 element sets. After removing 3 duplicates and 32 objects above 2,000 km, 1,027 objects remain (330 operating payloads and 697 debris pieces). These are the objects used for close-approach screening.
+
+## Method in brief
+
+1. **Prepare**: merge and de-duplicate catalogue pulls, parse TLEs, drop objects above 2,000 km, flag element sets older than 7 days.
+2. **Criticality score**: `C = status x (0.5 + 0.2 x recency + 0.3 x replaceability)`, scaled 0 to 1. Status is a gate (a non-operating object scores 0), recency is the launch-age rank percentile among payloads, and replaceability falls with the size of the satellite's series (inferred from its name). Scores are cut into four tiers: Low (D), Moderate (C), High (B), Critical (A).
+3. **Validation without ground truth**: random weight sensitivity (1,000 draws, rank correlation), k-means agreement (Adjusted Rand Index), face validity on known satellites, and supervised models (decision tree, random forest) including a held-out-series test.
+4. **Close approaches**: SGP4 propagation (`asteRisk`) over 3 days on a 2-minute grid, cubic Hermite interpolation to find minimum separation, alert threshold 10 km, events under 1 km/s relative speed removed.
+5. **Priority**: pair criticality, miss distance and object size combined into one score, tested for stability against weights, distance scale and the size term.
+
+## Headline results (snapshot above)
+
+- 20,269 payloads scored: Low 3,006, Moderate 470, High 13,191, Critical 3,602.
+- Weight sensitivity: median rank correlation 0.987 across 1,000 random weight draws.
+- Random forest on operating payloads: 0.948 accuracy and 0.844 macro-F1 on a random split, but macro-F1 falls to 0.211 when whole satellite series are held out. The tiers are consistent with the catalogue, which is not proof that they are correct.
+- 791 close approaches under 10 km across 620 pairs. The priority top 20 contains 19 Critical-tier payloads (9 by distance) and keeps at least 14 members under 1,000 random weight draws.
+
+## How to reproduce
+
+Requirements: R 4.5 or later and the packages loaded at the top of the script (including `asteRisk`, `ggplot2`, `rpart` and `randomForest`). A `sessionInfo()` block at the end of the report lists the exact versions used.
+
+1. Download or clone this repository so that the CSV and TLE files sit in the same folder as the `.Rmd` file.
+2. Open `Assignment-1.Rmd` in RStudio and set the working directory to that folder.
+3. Knit to HTML. The first run propagates about 2.2 million positions and saves a cache file (`tier2_propagation_<time>.rds`); later runs reuse it. The cache is not stored in this repository and is regenerated by the code.
+4. Random seeds are fixed (5145 for sampling, the weight draws and the supervised models; 17 for k-means), so the numbers match the report.
+
+## Limitations
+
+- No public record shows which alerts operators acted on, so the tiers are a stated convention, not learned outcomes.
+- TLEs have about 1 to 2 km error and no covariance, so outputs are relative risk exposure and not collision probabilities.
+- Series size is inferred from satellite names, and RCS is missing for most active payloads.
+- The demonstration covers 1,027 objects over 3 days. The full catalogue would need a more efficient pair filter or a parallel setup.
+
+## Data source and terms
+
+SATCAT and GP/TLE data are provided by CelesTrak (https://celestrak.org) and are redistributed here as a snapshot for academic reproducibility. See CelesTrak for its terms of use and for current data.
